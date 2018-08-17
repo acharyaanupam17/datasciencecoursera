@@ -1,0 +1,145 @@
+---
+title: "Reproducible Research Week 2 Assignment"
+author: "Anupam Acharya"
+date: "16 August 2018"
+---
+Reading data and displaying a summary of the data.
+```{r readdata}
+alldata <- read.csv("./repdata%2Fdata%2Factivity/activity.csv")
+alldata$date <- as.Date(alldata$date)
+alldata$weekday <- factor(weekdays(alldata$date), levels = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))
+head(alldata)
+summary(alldata$steps)
+```
+
+###What is mean total number of steps taken per day?
+####1. Calculate the total number of steps taken per day
+```{r sum}
+total_steps_daywise <- tapply(alldata$steps, alldata$date, sum)
+head(total_steps_daywise)
+```
+
+####2. Make a histogram of the total number of steps taken each day
+I have used the base plot system to create a histogram of the total number of steps taken each day.
+```{r histogram}
+hist(total_steps_daywise, main = "Histogram of the total number of steps taken each day", xlab = "Total number of steps taken", ylab = "Frequency", col = "steel blue", breaks = 10)
+```
+
+####3. Calculate and report the mean and median of the total number of steps taken per day
+```{r summary}
+mean <- round(mean(total_steps_daywise, na.rm = TRUE), digits = 1)
+median <- round(median(total_steps_daywise, na.rm = TRUE), digits = 1)
+```
+
+The mean of the total number of steps taken per day is `r mean` and the median of the total number of steps taken per day is `r median`.
+
+---
+
+###What is the average daily activity pattern?
+####1. Make a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)
+
+Calculating the mean of total steps for every 5-minute interval.
+
+```{r intervalwise}
+total_steps_intervalwise <- tapply(alldata$steps, alldata$interval, mean, na.rm = TRUE)
+```
+
+Plotting the line diagram
+
+```{r plot}
+plot(alldata$interval[1:288], total_steps_intervalwise, col = "red", main = "Time Series Plot of Avg. No.s of steps taken in each 5-minute interval", xlab = "Intervals --->", ylab = "Average number of Steps --->", type = "l")
+```
+
+####2. Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
+
+```{r max}
+max <- alldata$interval[which(total_steps_intervalwise == max(total_steps_intervalwise), )]
+```
+
+The 5-minute interval which contains the maximum number of steps is the `r max`th interval.
+
+---
+
+###Imputing missing values
+####1. Calculate and report the total number of missing values in the dataset (i.e. the total number of rows with NAs)
+
+```{r na}
+nas <- sum(is.na(alldata$steps))
+```
+
+The total number of rows with NAs are `r nas`
+
+####2. Devise a strategy for filling in all of the missing values in the dataset. The strategy does not need to be sophisticated. For example, you could use the mean/median for that day, or the mean for that 5-minute interval, etc.
+
+The strategy for filling in all of the missing values in the dataset in the steps column is to mutate the mean of steps for that 5 minute interval to each NA value.
+The data have to be grouped by interval and calculated mean for that interval will have to be overwritten on the NA value.
+
+####3. Create a new dataset that is equal to the original dataset but with the missing data filled in.
+
+The above strategy has been applied to create the new dataset. The new data set is called imputed_data.
+```{r impute}
+#loading libraries
+library(dplyr)
+#Function to identify if a value is NA and calculate the mean.
+mean_steps <- function(num) replace(num, is.na(num), mean(num, na.rm = TRUE))
+#Data Imputed with the above strategy
+imputed_data <- alldata %>% group_by(interval) %>% mutate(steps = mean_steps(steps))
+#Displaying Imputed data
+head(imputed_data)
+summary(imputed_data)
+new_nas <- sum(is.na(imputed_data$steps))
+```
+
+The imputed data has `r new_nas` NA values.
+
+####4. Make a histogram of the total number of steps taken each day and Calculate and report the mean and median total number of steps taken per day. Do these values differ from the estimates from the first part of the assignment? What is the impact of imputing missing data on the estimates of the total daily number of steps?
+
+Calculated the new total number of steps taken each day. Plotted the histogram of the calculated data.
+```{r}
+new_total_steps_daywise <- tapply(imputed_data$steps, imputed_data$date, sum, na.rm = TRUE)
+par(mar = c(4,2,2,2), mfrow = c(1,2))
+hist(new_total_steps_daywise, main = "Imputed Data", xlab = "Total number of steps taken --->", ylab = "Frequency --->", col = "steel blue", breaks = 10)
+hist(total_steps_daywise, main = "Original Data", xlab = "Total number of steps taken --->", ylab = "Frequency --->", col = "steel blue", breaks = 10)
+new_mean <- round(mean(new_total_steps_daywise), digits = 1)
+new_median <- round(median(new_total_steps_daywise), digits = 1)
+```
+
+The new mean with the imputed data is `r new_mean` and the old mean was `r mean`.
+The new median with the imputed data is `r new_median` while the old median was `r median`
+
+Imputation of the data has no effect on mean and a small change in median of the total number of steps taken.
+
+---
+
+###Are there differences in activity patterns between weekdays and weekends?
+####1. Create a new factor variable in the dataset with two levels - "weekday" and "weekend" indicating whether a given date is a weekday or weekend day.
+
+```{r daytype}
+alldata$DayType <- ifelse(alldata$weekday == "Saturday" | alldata$weekday == "Sunday", "Weekend", "Weekday")
+head(alldata)
+```
+
+####2. Make a panel plot containing a time series plot (i.e. type="l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis).
+
+```{r daytype_interval}
+weekday_alldata <- alldata[alldata$DayType == "Weekday", ]
+weekend_alldata <- alldata[alldata$DayType == "Weekend", ]
+weekday_intervalwise <- tapply(weekday_alldata$steps, weekday_alldata$interval, mean, na.rm = TRUE)
+weekend_intervalwise <- tapply(weekend_alldata$steps, weekend_alldata$interval, mean, na.rm = TRUE)
+```
+
+Plotting the line diagram for weekday and weekend
+
+```{r plot_weekday}
+plot(alldata$interval[1:288], weekday_intervalwise, col = "red", main = " Weekday Time Series Plot", xlab = "Intervals", ylab = "Avg. no. of steps", type = "l", ylim = c(0,250))
+abline(h = mean(weekday_intervalwise), col = "red")
+```
+
+```{r plot_weekend}
+plot(alldata$interval[1:288], weekend_intervalwise, col = "green", main = "Weekend Time Series Plot", xlab = "Intervals", ylab = "Avg. no. of steps", type = "l", ylim = c(0,250))
+abline(h = mean(weekend_intervalwise), col = "green")
+```
+
+There is significant difference between weekday and weekend activity. Weekdays have more peaks and low standard deviation. Weekends have lesser peaks. Both weekdays and weekends seem to have the same mean average number of steps intervalwise.
+
+---
